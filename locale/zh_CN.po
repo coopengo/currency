@@ -18,41 +18,49 @@ msgctxt "error:currency.currency:"
 msgid "No rate found for currency \"%(currency)s\" on \"%(date)s\""
 msgstr ""
 
+#, fuzzy
 msgctxt "field:currency.currency,active:"
 msgid "Active"
-msgstr ""
+msgstr "启用"
 
+#, fuzzy
 msgctxt "field:currency.currency,code:"
 msgid "Code"
-msgstr ""
+msgstr "语言编码"
 
+#, fuzzy
 msgctxt "field:currency.currency,create_date:"
 msgid "Create Date"
-msgstr ""
+msgstr "创建日期:"
 
+#, fuzzy
 msgctxt "field:currency.currency,create_uid:"
 msgid "Create User"
-msgstr ""
+msgstr "添加用户"
 
 msgctxt "field:currency.currency,digits:"
 msgid "Display Digits"
 msgstr ""
 
+#, fuzzy
 msgctxt "field:currency.currency,id:"
 msgid "ID"
-msgstr ""
+msgstr "编号"
 
+#, fuzzy
 msgctxt "field:currency.currency,mon_decimal_point:"
 msgid "Decimal Separator"
-msgstr ""
+msgstr "小数点"
 
+#, fuzzy
 msgctxt "field:currency.currency,mon_grouping:"
 msgid "Grouping"
-msgstr ""
+msgstr "类别"
 
+#, fuzzy
 msgctxt "field:currency.currency,mon_thousands_sep:"
 msgid "Thousands Separator"
-msgstr ""
+msgstr "千位分隔符"
 
 msgctxt "field:currency.currency,n_cs_precedes:"
 msgid "Negative Currency Symbol Precedes"
@@ -66,9 +74,10 @@ msgctxt "field:currency.currency,n_sign_posn:"
 msgid "Negative Sign Position"
 msgstr ""
 
+#, fuzzy
 msgctxt "field:currency.currency,name:"
 msgid "Name"
-msgstr ""
+msgstr "纳木"
 
 msgctxt "field:currency.currency,negative_sign:"
 msgid "Negative Sign"
@@ -98,13 +107,15 @@ msgctxt "field:currency.currency,rate:"
 msgid "Current rate"
 msgstr ""
 
+#, fuzzy
 msgctxt "field:currency.currency,rates:"
 msgid "Rates"
-msgstr ""
+msgstr "日期格式"
 
+#, fuzzy
 msgctxt "field:currency.currency,rec_name:"
 msgid "Name"
-msgstr ""
+msgstr "纳木"
 
 msgctxt "field:currency.currency,rounding:"
 msgid "Rounding factor"
@@ -114,49 +125,59 @@ msgctxt "field:currency.currency,symbol:"
 msgid "Symbol"
 msgstr ""
 
+#, fuzzy
 msgctxt "field:currency.currency,write_date:"
 msgid "Write Date"
-msgstr ""
+msgstr "写入日期"
 
+#, fuzzy
 msgctxt "field:currency.currency,write_uid:"
 msgid "Write User"
-msgstr ""
+msgstr "写入帐号"
 
+#, fuzzy
 msgctxt "field:currency.currency.rate,create_date:"
 msgid "Create Date"
-msgstr ""
+msgstr "创建日期:"
 
+#, fuzzy
 msgctxt "field:currency.currency.rate,create_uid:"
 msgid "Create User"
-msgstr ""
+msgstr "添加用户"
 
 msgctxt "field:currency.currency.rate,currency:"
 msgid "Currency"
 msgstr ""
 
+#, fuzzy
 msgctxt "field:currency.currency.rate,date:"
 msgid "Date"
-msgstr ""
+msgstr "日期格式"
 
+#, fuzzy
 msgctxt "field:currency.currency.rate,id:"
 msgid "ID"
-msgstr ""
+msgstr "编号"
 
+#, fuzzy
 msgctxt "field:currency.currency.rate,rate:"
 msgid "Rate"
-msgstr ""
+msgstr "日期格式"
 
+#, fuzzy
 msgctxt "field:currency.currency.rate,rec_name:"
 msgid "Name"
-msgstr ""
+msgstr "纳木"
 
+#, fuzzy
 msgctxt "field:currency.currency.rate,write_date:"
 msgid "Write Date"
-msgstr ""
+msgstr "写入日期"
 
+#, fuzzy
 msgctxt "field:currency.currency.rate,write_uid:"
 msgid "Write User"
-msgstr ""
+msgstr "写入帐号"
 
 msgctxt "model:currency.currency,name:"
 msgid "Currency"
@@ -890,9 +911,10 @@ msgctxt "model:currency.currency,name:zwd"
 msgid "Zimbabwe Dollar"
 msgstr "津巴布韦元"
 
+#, fuzzy
 msgctxt "model:currency.currency.rate,name:"
 msgid "Rate"
-msgstr ""
+msgstr "日期格式"
 
 msgctxt "model:ir.action,name:act_currency_form"
 msgid "Currencies"
@@ -910,26 +932,11 @@ msgctxt "model:res.group,name:group_currency_admin"
 msgid "Currency Administration"
 msgstr ""
 
-msgctxt "view:currency.currency.rate:"
-msgid "Rate"
-msgstr ""
-
-msgctxt "view:currency.currency.rate:"
-msgid "Rates"
-msgstr ""
-
-msgctxt "view:currency.currency:"
-msgid "Currencies"
-msgstr ""
-
-msgctxt "view:currency.currency:"
-msgid "Currency"
-msgstr ""
-
 msgctxt "view:currency.currency:"
 msgid "Formatting"
 msgstr ""
 
+#, fuzzy
 msgctxt "view:currency.currency:"
 msgid "Rates"
-msgstr ""
+msgstr "日期格式"

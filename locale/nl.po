@@ -28,22 +28,25 @@ msgctxt "field:currency.currency,code:"
 msgid "Code"
 msgstr "Code"
 
+#, fuzzy
 msgctxt "field:currency.currency,create_date:"
 msgid "Create Date"
-msgstr ""
+msgstr "Datum"
 
+#, fuzzy
 msgctxt "field:currency.currency,create_uid:"
 msgid "Create User"
-msgstr ""
+msgstr "Gebruiker"
 
 #, fuzzy
 msgctxt "field:currency.currency,digits:"
 msgid "Display Digits"
 msgstr "Zichtbare decimalen"
 
+#, fuzzy
 msgctxt "field:currency.currency,id:"
 msgid "ID"
-msgstr ""
+msgstr "ID"
 
 #, fuzzy
 msgctxt "field:currency.currency,mon_decimal_point:"
@@ -124,21 +127,25 @@ msgctxt "field:currency.currency,symbol:"
 msgid "Symbol"
 msgstr "Symbool"
 
+#, fuzzy
 msgctxt "field:currency.currency,write_date:"
 msgid "Write Date"
-msgstr ""
+msgstr "Schrijfdatum"
 
+#, fuzzy
 msgctxt "field:currency.currency,write_uid:"
 msgid "Write User"
-msgstr ""
+msgstr "Gebruiker"
 
+#, fuzzy
 msgctxt "field:currency.currency.rate,create_date:"
 msgid "Create Date"
-msgstr ""
+msgstr "Datum"
 
+#, fuzzy
 msgctxt "field:currency.currency.rate,create_uid:"
 msgid "Create User"
-msgstr ""
+msgstr "Gebruiker"
 
 #, fuzzy
 msgctxt "field:currency.currency.rate,currency:"
@@ -150,9 +157,10 @@ msgctxt "field:currency.currency.rate,date:"
 msgid "Date"
 msgstr "Vervaldatum"
 
+#, fuzzy
 msgctxt "field:currency.currency.rate,id:"
 msgid "ID"
-msgstr ""
+msgstr "ID"
 
 #, fuzzy
 msgctxt "field:currency.currency.rate,rate:"
@@ -164,13 +172,15 @@ msgctxt "field:currency.currency.rate,rec_name:"
 msgid "Name"
 msgstr "Naam bijlage"
 
+#, fuzzy
 msgctxt "field:currency.currency.rate,write_date:"
 msgid "Write Date"
-msgstr ""
+msgstr "Schrijfdatum"
 
+#, fuzzy
 msgctxt "field:currency.currency.rate,write_uid:"
 msgid "Write User"
-msgstr ""
+msgstr "Gebruiker"
 
 #, fuzzy
 msgctxt "model:currency.currency,name:"
@@ -927,6 +937,15 @@ msgctxt "model:res.group,name:group_currency_admin"
 msgid "Currency Administration"
 msgstr ""
 
+msgctxt "view:currency.currency:"
+msgid "Formatting"
+msgstr ""
+
+#, fuzzy
+msgctxt "view:currency.currency:"
+msgid "Rates"
+msgstr "Verhouding"
+
 #, fuzzy
 msgctxt "view:currency.currency.rate:"
 msgid "Rate"
@@ -934,23 +953,5 @@ msgstr "Verhouding"
 
 #, fuzzy
 msgctxt "view:currency.currency.rate:"
-msgid "Rates"
-msgstr "Verhouding"
-
-msgctxt "view:currency.currency:"
-msgid "Currencies"
-msgstr ""
-
-#, fuzzy
-msgctxt "view:currency.currency:"
-msgid "Currency"
-msgstr "Valuta"
-
-msgctxt "view:currency.currency:"
-msgid "Formatting"
-msgstr ""
-
-#, fuzzy
-msgctxt "view:currency.currency:"
 msgid "Rates"
 msgstr "Verhouding"
