@@ -1,9 +1,14 @@
 # This file is part of Tryton.  The COPYRIGHT file at the top level of
 # this repository contains the full copyright notices and license terms.
+import datetime
+import doctest
 import unittest
 from decimal import Decimal
 import trytond.tests.test_tryton
+from trytond.transaction import Transaction
 from trytond.tests.test_tryton import ModuleTestCase, with_transaction
+from trytond.tests.test_tryton import doctest_teardown
+from trytond.tests.test_tryton import doctest_checker
 from trytond.pool import Pool
 
 
@@ -17,12 +22,15 @@ def create_currency(name):
                 }])[0]
 
 
-def add_currency_rate(currency, rate):
+def add_currency_rate(currency, rate, date=None):
     pool = Pool()
     Rate = pool.get('currency.currency.rate')
+    if date is None:
+        date = Rate.default_date()
     return Rate.create([{
                 'currency': currency.id,
                 'rate': rate,
+                'date': date,
                 }])[0]
 
 
@@ -42,25 +50,6 @@ class CurrencyTestCase(ModuleTestCase):
         cu2 = create_currency('cu2')
         self.assert_(cu1)
         self.assert_(cu2)
-
-    @with_transaction()
-    def test_mon_grouping(self):
-        'Check grouping'
-        pool = Pool()
-        Currency = pool.get('currency.currency')
-        cu1 = create_currency('cu1')
-
-        self.assertRaises(Exception, Currency.write, [cu1],
-            {'mon_grouping': ''})
-
-        self.assertRaises(Exception, Currency.write, [cu1],
-            {'mon_grouping': '[a]'})
-
-        self.assertRaises(Exception, Currency.write, [cu1],
-            {'mon_grouping': '[1,"a"]'})
-
-        self.assertRaises(Exception, Currency.write, [cu1],
-            {'mon_grouping': '[1,"1"]'})
 
     @with_transaction()
     def test_rate(self):
@@ -232,9 +221,48 @@ class CurrencyTestCase(ModuleTestCase):
                     )], 0, None, None)
         self.assertFalse(rates)
 
+    @with_transaction()
+    def test_currency_rate_sql(self):
+        "Test currency rate SQL"
+        pool = Pool()
+        Currency = pool.get('currency.currency')
+        transaction = Transaction()
+        cursor = transaction.connection.cursor()
+        date = datetime.date
+
+        cu1 = create_currency('cu1')
+        for date_, rate in [
+                (date(2017, 1, 1), Decimal(1)),
+                (date(2017, 2, 1), Decimal(2)),
+                (date(2017, 3, 1), Decimal(3))]:
+            add_currency_rate(cu1, rate, date_)
+        cu2 = create_currency('cu2')
+        for date_, rate in [
+                (date(2017, 2, 1), Decimal(2)),
+                (date(2017, 4, 1), Decimal(4))]:
+            add_currency_rate(cu2, rate, date_)
+
+        query = Currency.currency_rate_sql()
+        cursor.execute(*query)
+        data = set(cursor.fetchall())
+        result = {
+            (cu1.id, Decimal(1), date(2017, 1, 1), date(2017, 2, 1)),
+            (cu1.id, Decimal(2), date(2017, 2, 1), date(2017, 3, 1)),
+            (cu1.id, Decimal(3), date(2017, 3, 1), None),
+            (cu2.id, Decimal(2), date(2017, 2, 1), date(2017, 4, 1)),
+            (cu2.id, Decimal(4), date(2017, 4, 1), None),
+            }
+
+        self.assertSetEqual(data, result)
+
 
 def suite():
     suite = trytond.tests.test_tryton.suite()
     suite.addTests(unittest.TestLoader().loadTestsFromTestCase(
             CurrencyTestCase))
+    suite.addTests(doctest.DocFileSuite(
+            'scenario_currency_compute.rst',
+            tearDown=doctest_teardown, encoding='utf-8',
+            checker=doctest_checker,
+            optionflags=doctest.REPORT_ONLY_FIRST_FAILURE))
     return suite

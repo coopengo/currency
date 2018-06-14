@@ -1,44 +1,44 @@
 # This file is part of Tryton.  The COPYRIGHT file at the top level of
 # this repository contains the full copyright notices and license terms.
 import datetime
-import json
 
 from decimal import Decimal, ROUND_HALF_EVEN
-from trytond.model import ModelView, ModelSQL, fields, Unique, Check
+
+from sql import Window
+from sql.functions import NthValue
+
+from trytond import backend
+from trytond.model import (
+    ModelView, ModelSQL, DeactivableMixin, fields, Unique, Check)
 from trytond.tools import datetime_strftime
 from trytond.transaction import Transaction
 from trytond.pool import Pool
 from trytond.rpc import RPC
+from trytond.pyson import Eval
 
 __all__ = ['Currency', 'Rate']
 
 
-class Currency(ModelSQL, ModelView):
+class Currency(DeactivableMixin, ModelSQL, ModelView):
     'Currency'
     __name__ = 'currency.currency'
-    name = fields.Char('Name', required=True, translate=True)
-    symbol = fields.Char('Symbol', size=10, required=True)
-    code = fields.Char('Code', size=3, required=True)
-    numeric_code = fields.Char('Numeric Code', size=3)
+    name = fields.Char('Name', required=True, translate=True,
+        help="The main identifier of the currency.")
+    symbol = fields.Char('Symbol', size=10, required=True,
+        help="The symbol used for currency formating.")
+    code = fields.Char('Code', size=3, required=True,
+        help="The 3 chars ISO currency code.")
+    numeric_code = fields.Char('Numeric Code', size=3,
+        help="The 3 digits ISO currency code.")
     rate = fields.Function(fields.Numeric('Current rate', digits=(12, 6)),
         'get_rate')
-    rates = fields.One2Many('currency.currency.rate', 'currency', 'Rates')
-    rounding = fields.Numeric('Rounding factor', digits=(12, 6), required=True)
-    digits = fields.Integer('Display Digits', required=True)
-    active = fields.Boolean('Active')
-
-    # monetary formatting
-    mon_grouping = fields.Char('Grouping', required=True)
-    mon_decimal_point = fields.Char('Decimal Separator', required=True)
-    mon_thousands_sep = fields.Char('Thousands Separator')
-    p_sign_posn = fields.Integer('Positive Sign Position', required=True)
-    n_sign_posn = fields.Integer('Negative Sign Position', required=True)
-    positive_sign = fields.Char('Positive Sign')
-    negative_sign = fields.Char('Negative Sign')
-    p_cs_precedes = fields.Boolean('Positive Currency Symbol Precedes')
-    n_cs_precedes = fields.Boolean('Negative Currency Symbol Precedes')
-    p_sep_by_space = fields.Boolean('Positive Separate by Space')
-    n_sep_by_space = fields.Boolean('Negative Separate by Space')
+    rates = fields.One2Many('currency.currency.rate', 'currency', 'Rates',
+        help="Add floating exchange rates for the currency.")
+    rounding = fields.Numeric('Rounding factor', required=True,
+        digits=(12, Eval('digits', 6)), depends=['digits'],
+        help="The minimum amount which can be represented in this currency.")
+    digits = fields.Integer("Digits", required=True,
+        help="The number of digits to display after the decimal separator.")
 
     @classmethod
     def __setup__(cls):
@@ -47,16 +47,24 @@ class Currency(ModelSQL, ModelView):
         cls._error_messages.update({
                 'no_rate': ('No rate found for currency "%(currency)s" on '
                     '"%(date)s"'),
-                'invalid_mon_grouping': ('Invalid grouping "%(grouping)s" on '
-                    'currency "%(currency)s".'),
                 })
         cls.__rpc__.update({
-                'compute': RPC(),
+                'compute': RPC(instantiate=slice(0, 3, 2)),
                 })
 
-    @staticmethod
-    def default_active():
-        return True
+    @classmethod
+    def __register__(cls, module_name):
+        TableHandler = backend.get('TableHandler')
+
+        super(Currency, cls).__register__(module_name)
+
+        table_h = TableHandler(cls, module_name)
+
+        # Migration from 4.6: removal of monetary
+        for col in [
+                'mon_grouping', 'mon_decimal_point',
+                'p_sign_posn', 'n_sign_posn']:
+            table_h.not_null_action(col, 'remove')
 
     @staticmethod
     def default_rounding():
@@ -65,71 +73,6 @@ class Currency(ModelSQL, ModelView):
     @staticmethod
     def default_digits():
         return 2
-
-    @staticmethod
-    def default_mon_grouping():
-        return '[]'
-
-    @staticmethod
-    def default_mon_thousands_sep():
-        return ','
-
-    @staticmethod
-    def default_mon_decimal_point():
-        return '.'
-
-    @staticmethod
-    def default_p_sign_posn():
-        return 1
-
-    @staticmethod
-    def default_n_sign_posn():
-        return 1
-
-    @staticmethod
-    def default_negative_sign():
-        return '-'
-
-    @staticmethod
-    def default_positive_sign():
-        return ''
-
-    @staticmethod
-    def default_p_cs_precedes():
-        return True
-
-    @staticmethod
-    def default_n_cs_precedes():
-        return True
-
-    @staticmethod
-    def default_p_sep_by_space():
-        return False
-
-    @staticmethod
-    def default_n_sep_by_space():
-        return False
-
-    @classmethod
-    def validate(cls, currencies):
-        super(Currency, cls).validate(currencies)
-        for currency in currencies:
-            currency.check_mon_grouping()
-
-    def check_mon_grouping(self):
-        '''
-        Check if mon_grouping is list of numbers
-        '''
-        try:
-            grouping = json.loads(self.mon_grouping)
-            for i in grouping:
-                if not isinstance(i, int):
-                    raise ValueError
-        except Exception:
-            self.raise_user_error('invalid_mon_grouping', {
-                    'grouping': self.mon_grouping,
-                    'currency': self.rec_name,
-                    })
 
     @classmethod
     def check_xml_record(cls, records, values):
@@ -212,8 +155,8 @@ class Currency(ModelSQL, ModelView):
         '''
         Date = Pool().get('ir.date')
         Lang = Pool().get('ir.lang')
-        from_currency = cls(from_currency.id)
-        to_currency = cls(to_currency.id)
+        from_currency = cls(int(from_currency))
+        to_currency = cls(int(to_currency))
 
         if to_currency == from_currency:
             if round:
@@ -240,14 +183,51 @@ class Currency(ModelSQL, ModelView):
         else:
             return amount * to_currency.rate / from_currency.rate
 
+    @classmethod
+    def currency_rate_sql(cls):
+        "Return a SQL query with currency, rate, start_date and end_date"
+        pool = Pool()
+        Rate = pool.get('currency.currency.rate')
+        transaction = Transaction()
+        database = transaction.database
+
+        rate = Rate.__table__()
+        if database.has_window_functions():
+            window = Window(
+                [rate.currency],
+                order_by=[rate.date.asc],
+                frame='ROWS', start=0, end=1)
+            # Use NthValue instead of LastValue to get NULL for the last row
+            end_date = NthValue(rate.date, 2, window=window)
+        else:
+            next_rate = Rate.__table__()
+            end_date = next_rate.select(
+                next_rate.date,
+                where=(next_rate.currency == rate.currency)
+                & (next_rate.date > rate.date),
+                order_by=[next_rate.date.asc],
+                limit=1)
+
+        query = (rate
+            .select(
+                rate.currency.as_('currency'),
+                rate.rate.as_('rate'),
+                rate.date.as_('start_date'),
+                end_date.as_('end_date'),
+                ))
+        return query
+
 
 class Rate(ModelSQL, ModelView):
     'Rate'
     __name__ = 'currency.currency.rate'
-    date = fields.Date('Date', required=True, select=True)
-    rate = fields.Numeric('Rate', digits=(12, 6), required=1)
+    date = fields.Date('Date', required=True, select=True,
+        help="From when the rate applies.")
+    rate = fields.Numeric('Rate', digits=(12, 6), required=1,
+        help="The floating exchange rate used to convert the currency.")
     currency = fields.Many2One('currency.currency', 'Currency',
-            ondelete='CASCADE',)
+            ondelete='CASCADE',
+        help="The currency on which the rate applies.")
 
     @classmethod
     def __setup__(cls):
