@@ -64,6 +64,12 @@ class Currency(DeactivableMixin, ModelSQL, ModelView):
                 'p_sign_posn', 'n_sign_posn']:
             table_h.not_null_action(col, 'remove')
 
+        # Migration from coog-2.8: Keep a reference on the euro
+        cursor.execute(*data.update(
+                [data.module],
+                ['currency_cog'],
+                where=(data.module == 'currency') & (data.fs_id == 'eur')
+                ))
         # Migration from 5.2: remove country data
         cursor.execute(*data.delete(where=(data.module == 'currency')
                 & (data.model == cls.__name__)))
