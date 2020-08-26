@@ -17,8 +17,6 @@ from trytond.pyson import Eval
 
 from .exceptions import RateError
 
-__all__ = ['Currency', 'Rate']
-
 
 class Currency(DeactivableMixin, ModelSQL, ModelView):
     'Currency'
@@ -51,6 +49,11 @@ class Currency(DeactivableMixin, ModelSQL, ModelView):
 
     @classmethod
     def __register__(cls, module_name):
+        pool = Pool()
+        Data = pool.get('ir.model.data')
+        data = Data.__table__()
+        cursor = Transaction().connection.cursor()
+
         super(Currency, cls).__register__(module_name)
 
         table_h = cls.__table_handler__(module_name)
@@ -60,6 +63,16 @@ class Currency(DeactivableMixin, ModelSQL, ModelView):
                 'mon_grouping', 'mon_decimal_point',
                 'p_sign_posn', 'n_sign_posn']:
             table_h.not_null_action(col, 'remove')
+
+        # Migration from coog-2.8: Keep a reference on the euro
+        cursor.execute(*data.update(
+                [data.module],
+                ['currency_cog'],
+                where=(data.module == 'currency') & (data.fs_id == 'eur')
+                ))
+        # Migration from 5.2: remove country data
+        cursor.execute(*data.delete(where=(data.module == 'currency')
+                & (data.model == cls.__name__)))
 
     @staticmethod
     def default_rounding():
@@ -134,11 +147,15 @@ class Currency(DeactivableMixin, ModelSQL, ModelView):
 
     def round(self, amount, rounding=ROUND_HALF_EVEN):
         'Round the amount depending of the currency'
+        return self._round(amount, self.rounding, rounding)
+
+    @classmethod
+    def _round(cls, amount, factor, rounding):
         with localcontext() as ctx:
-            ctx.prec = max(ctx.prec, (amount / self.rounding).adjusted() + 1)
-            # Divide and multiple by rounding for case rounding is not 10En
-            result = (amount / self.rounding).quantize(Decimal('1.'),
-                    rounding=rounding) * self.rounding
+            ctx.prec = max(ctx.prec, (amount / factor).adjusted() + 1)
+            # Divide and multiple by factor for case factor is not 10En
+            result = (amount / factor).quantize(Decimal('1.'),
+                    rounding=rounding) * factor
         return Decimal(result)
 
     def is_zero(self, amount):
@@ -214,8 +231,8 @@ class Currency(DeactivableMixin, ModelSQL, ModelView):
         return query
 
 
-class Rate(ModelSQL, ModelView):
-    'Rate'
+class CurrencyRate(ModelSQL, ModelView):
+    "Currency Rate"
     __name__ = 'currency.currency.rate'
     date = fields.Date('Date', required=True, select=True,
         help="From when the rate applies.")
@@ -227,7 +244,7 @@ class Rate(ModelSQL, ModelView):
 
     @classmethod
     def __setup__(cls):
-        super(Rate, cls).__setup__()
+        super().__setup__()
         t = cls.__table__()
         cls._sql_constraints = [
             ('date_currency_uniq', Unique(t, t.date, t.currency),

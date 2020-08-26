@@ -44,6 +44,12 @@ if minor_version % 2:
     download_url = (
         'hg+http://hg.tryton.org/modules/%s#egg=%s-%s' % (
             name[8:], name, version))
+local_version = []
+for build in ['CI_BUILD_NUMBER', 'CI_JOB_NUMBER', 'CI_JOB_ID']:
+    if os.environ.get(build):
+        local_version.append(os.environ[build])
+if local_version:
+    version += '+' + '.'.join(local_version)
 
 requires = ['python-sql >= 0.9']
 for dep in info.get('depends', []):
@@ -51,7 +57,7 @@ for dep in info.get('depends', []):
         requires.append(get_require_version('trytond_%s' % dep))
 requires.append(get_require_version('trytond'))
 
-tests_require = [get_require_version('proteus')]
+tests_require = [get_require_version('proteus'), 'pycountry', 'forex-python']
 dependency_links = []
 if minor_version % 2:
     dependency_links.append('https://trydevpi.tryton.org/')
@@ -73,8 +79,8 @@ setup(name=name,
     keywords='tryton currency',
     package_dir={'trytond.modules.currency': '.'},
     packages=(
-        ['trytond.modules.currency'] +
-        ['trytond.modules.currency.%s' % p for p in find_packages()]
+        ['trytond.modules.currency']
+        + ['trytond.modules.currency.%s' % p for p in find_packages()]
         ),
     package_data={
         'trytond.modules.currency': (info.get('xml', [])
@@ -89,7 +95,8 @@ setup(name=name,
         'Intended Audience :: Financial and Insurance Industry',
         'Intended Audience :: Legal Industry',
         'Intended Audience :: Manufacturing',
-        'License :: OSI Approved :: GNU General Public License v3 or later (GPLv3+)',
+        'License :: OSI Approved :: '
+        'GNU General Public License v3 or later (GPLv3+)',
         'Natural Language :: Bulgarian',
         'Natural Language :: Catalan',
         'Natural Language :: Chinese (Simplified)',
@@ -100,6 +107,7 @@ setup(name=name,
         'Natural Language :: French',
         'Natural Language :: German',
         'Natural Language :: Hungarian',
+        'Natural Language :: Indonesian',
         'Natural Language :: Italian',
         'Natural Language :: Persian',
         'Natural Language :: Polish',
@@ -113,6 +121,7 @@ setup(name=name,
         'Programming Language :: Python :: 3.5',
         'Programming Language :: Python :: 3.6',
         'Programming Language :: Python :: 3.7',
+        'Programming Language :: Python :: 3.8',
         'Programming Language :: Python :: Implementation :: CPython',
         'Programming Language :: Python :: Implementation :: PyPy',
         'Topic :: Office/Business',
@@ -121,12 +130,18 @@ setup(name=name,
     license='GPL-3',
     python_requires='>=3.5',
     install_requires=requires,
+    extras_require={
+        'data': [
+            'pycountry', 'forex-python', get_require_version('proteus')],
+        },
     dependency_links=dependency_links,
     zip_safe=False,
     entry_points="""
     [trytond.modules]
     currency = trytond.modules.currency
-    """,
+    [console_scripts]
+    trytond_import_currencies = trytond.modules.currency.scripts.import_currencies:run [data]
+    """,  # noqa: E501
     test_suite='tests',
     test_loader='trytond.test_loader:Loader',
     tests_require=tests_require,
