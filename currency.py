@@ -1,24 +1,36 @@
 # This file is part of Tryton.  The COPYRIGHT file at the top level of
 # this repository contains the full copyright notices and license terms.
 import datetime
+import logging
 
 from decimal import Decimal, ROUND_HALF_EVEN, localcontext
+
+from dateutil.relativedelta import relativedelta
 
 from sql import Window
 from sql.functions import NthValue
 
+try:
+    from forex_python.converter import CurrencyRates, RatesNotAvailableError
+    get_rates = CurrencyRates(force_decimal=True).get_rates
+except ImportError:
+    CurrencyRates = get_rates = None
+
 from trytond.i18n import gettext
 from trytond.model import (
-    ModelView, ModelSQL, DeactivableMixin, fields, Unique, Check)
+    ModelView, ModelSQL, DeactivableMixin, fields, Unique, Check, SymbolMixin)
 from trytond.transaction import Transaction
 from trytond.pool import Pool
 from trytond.rpc import RPC
-from trytond.pyson import Eval
+from trytond.pyson import Eval, If
 
 from .exceptions import RateError
+from .ir import rate_decimal
+
+logger = logging.getLogger(__name__)
 
 
-class Currency(DeactivableMixin, ModelSQL, ModelView):
+class Currency(SymbolMixin, DeactivableMixin, ModelSQL, ModelView):
     'Currency'
     __name__ = 'currency.currency'
     name = fields.Char('Name', required=True, translate=True,
@@ -29,7 +41,8 @@ class Currency(DeactivableMixin, ModelSQL, ModelView):
         help="The 3 chars ISO currency code.")
     numeric_code = fields.Char('Numeric Code', size=3,
         help="The 3 digits ISO currency code.")
-    rate = fields.Function(fields.Numeric('Current rate', digits=(12, 6)),
+    rate = fields.Function(fields.Numeric(
+            "Current rate", digits=(rate_decimal * 2, rate_decimal)),
         'get_rate')
     rates = fields.One2Many('currency.currency.rate', 'currency', 'Rates',
         help="Add floating exchange rates for the currency.")
@@ -151,6 +164,8 @@ class Currency(DeactivableMixin, ModelSQL, ModelView):
 
     @classmethod
     def _round(cls, amount, factor, rounding):
+        if not factor:
+            return amount
         with localcontext() as ctx:
             ctx.prec = max(ctx.prec, (amount / factor).adjusted() + 1)
             # Divide and multiple by factor for case factor is not 10En
@@ -160,7 +175,9 @@ class Currency(DeactivableMixin, ModelSQL, ModelView):
 
     def is_zero(self, amount):
         'Return True if the amount can be considered as zero for the currency'
-        return abs(self.round(amount)) < self.rounding
+        if not self.rounding:
+            return not amount
+        return abs(self.round(amount)) < abs(self.rounding)
 
     @classmethod
     def compute(cls, from_currency, amount, to_currency, round=True):
@@ -230,13 +247,24 @@ class Currency(DeactivableMixin, ModelSQL, ModelView):
                 ))
         return query
 
+    def get_symbol(self, sign, symbol=None):
+        pool = Pool()
+        Lang = pool.get('ir.lang')
+        lang = Lang.get()
+        symbol, position = super().get_symbol(sign, symbol=symbol)
+        if ((sign < 0 and lang.n_cs_precedes)
+                or (sign >= 0 and lang.p_cs_precedes)):
+            position = 0
+        return symbol, position
+
 
 class CurrencyRate(ModelSQL, ModelView):
     "Currency Rate"
     __name__ = 'currency.currency.rate'
     date = fields.Date('Date', required=True, select=True,
         help="From when the rate applies.")
-    rate = fields.Numeric('Rate', digits=(12, 6), required=1,
+    rate = fields.Numeric(
+        "Rate", digits=(rate_decimal * 2, rate_decimal), required=1,
         help="The floating exchange rate used to convert the currency.")
     currency = fields.Many2One('currency.currency', 'Currency',
             ondelete='CASCADE',
@@ -245,6 +273,7 @@ class CurrencyRate(ModelSQL, ModelView):
     @classmethod
     def __setup__(cls):
         super().__setup__()
+        cls.__access__.add('currency')
         t = cls.__table__()
         cls._sql_constraints = [
             ('date_currency_uniq', Unique(t, t.date, t.currency),
@@ -265,3 +294,169 @@ class CurrencyRate(ModelSQL, ModelView):
 
     def get_rec_name(self, name):
         return str(self.date)
+
+
+class CronFetchError(Exception):
+    pass
+
+
+class Cron(ModelSQL, ModelView):
+    "Currency Cron"
+    __name__ = 'currency.cron'
+
+    source = fields.Selection(
+        [], "Source", required=True,
+        help="The external source for rates.")
+    frequency = fields.Selection([
+            ('daily', "Daily"),
+            ('weekly', "Weekly"),
+            ('monthly', "Monthly"),
+            ], "Frequency", required=True,
+        help="How frequently rates must be updated.")
+    weekday = fields.Many2One(
+        'ir.calendar.day', "Day of Week",
+        states={
+            'required': Eval('frequency') == 'weekly',
+            'invisible': Eval('frequency') != 'weekly',
+            },
+        depends=['frequency'])
+    day = fields.Integer(
+        "Day of Month",
+        domain=[If(Eval('frequency') == 'monthly',
+                [('day', '>=', 1), ('day', '<=', 31)],
+                [('day', '=', None)]),
+            ],
+        states={
+            'required': Eval('frequency') == 'monthly',
+            'invisible': Eval('frequency') != 'monthly',
+            },
+        depends=['frequency'])
+    currency = fields.Many2One(
+        'currency.currency', "Currency", required=True,
+        help="The base currency to fetch rate.")
+    currencies = fields.Many2Many(
+        'currency.cron-currency.currency', 'cron', 'currency', "Currencies",
+        help="The currencies to update the rate.")
+    last_update = fields.Date("Last Update", required=True)
+
+    @classmethod
+    def __setup__(cls):
+        super().__setup__()
+        cls._buttons.update({
+                'run': {},
+                })
+        if CurrencyRates:
+            cls.source.selection.append(('ecb', "European Central Bank"))
+
+    @classmethod
+    def default_frequency(cls):
+        return 'monthly'
+
+    @classmethod
+    def default_day(cls):
+        return 1
+
+    @classmethod
+    def default_last_update(cls):
+        pool = Pool()
+        Date = pool.get('ir.date')
+        return Date.today()
+
+    @classmethod
+    @ModelView.button
+    def run(cls, crons):
+        cls.update(crons)
+
+    @classmethod
+    def update(cls, crons=None):
+        pool = Pool()
+        Rate = pool.get('currency.currency.rate')
+        if crons is None:
+            crons = cls.search([])
+        rates = []
+        for cron in crons:
+            rates.extend(cron._update())
+        Rate.save(rates)
+        cls.save(crons)
+
+    def _update(self):
+        limit = self.limit_update()
+        date = self.next_update()
+        while date <= limit:
+            try:
+                yield from self._rates(date)
+            except CronFetchError:
+                logger.warning("Could not fetch rates temporary")
+                break
+            except Exception:
+                logger.error("Fail to fetch rates", exc_info=True)
+                break
+            self.last_update = date
+            date = self.next_update()
+
+    def next_update(self):
+        return self.last_update + self.delta()
+
+    def limit_update(self):
+        pool = Pool()
+        Date = pool.get('ir.date')
+        return Date.today()
+
+    def delta(self):
+        if self.frequency == 'daily':
+            delta = relativedelta(days=1)
+        elif self.frequency == 'weekly':
+            delta = relativedelta(weeks=1, weekday=int(self.weekday.index))
+        elif self.frequency == 'monthly':
+            delta = relativedelta(months=1, day=self.day)
+        else:
+            delta = relativedelta()
+        return delta
+
+    def _rates(self, date, rounding=None):
+        pool = Pool()
+        Rate = pool.get('currency.currency.rate')
+        values = getattr(self, 'fetch_%s' % self.source)(date)
+
+        exp = Decimal(Decimal(1) / 10 ** Rate.rate.digits[1])
+        rates = Rate.search([
+                ('date', '=', date),
+                ])
+        code2rates = {r.currency.code: r for r in rates}
+
+        def get_rate(currency):
+            if currency.code in code2rates:
+                rate = code2rates[currency.code]
+            else:
+                rate = Rate(date=date, currency=currency)
+            return rate
+
+        rate = get_rate(self.currency)
+        rate.rate = Decimal(1).quantize(exp, rounding=rounding)
+        yield rate
+
+        for currency in self.currencies:
+            if currency.code not in values:
+                continue
+            value = values[currency.code]
+            rate = get_rate(currency)
+            rate.rate = value.quantize(exp, rounding=rounding)
+            yield rate
+
+    def fetch_ecb(self, date):
+        try:
+            return get_rates(self.currency.code, date)
+        except RatesNotAvailableError as e:
+            raise CronFetchError() from e
+
+
+class Cron_Currency(ModelSQL):
+    "Currency Cron - Currency"
+    __name__ = 'currency.cron-currency.currency'
+
+    cron = fields.Many2One(
+        'currency.cron', "Cron",
+        required=True, select=True, ondelete='CASCADE')
+    currency = fields.Many2One(
+        'currency.currency', "Currency",
+        required=True, ondelete='CASCADE')

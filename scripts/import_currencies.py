@@ -37,6 +37,14 @@ def _get_language_codes():
         yield l.code
 
 
+def _remove_forbidden_chars(name):
+    from trytond.model.fields import Char
+    for c in Char.forbidden_chars:
+        if c in name:
+            name.replace(c, ' ')
+    return name.strip()
+
+
 def get_currencies():
     Currency = Model.get('currency.currency')
     return {c.code: c for c in Currency.find([])}
@@ -54,7 +62,7 @@ def update_currencies(currencies):
             record = currencies[code]
         else:
             record = Currency(code=code)
-        record.name = currency.name
+        record.name = _remove_forbidden_chars(currency.name)
         record.numeric_code = currency.numeric
         record.symbol = codes.get_symbol(currency.alpha_3) or currency.alpha_3
         records.append(record)
@@ -78,7 +86,8 @@ def translate_currencies(currencies):
             records = []
             for currency in _progress(pycountry.currencies):
                 record = Currency(currencies[currency.alpha_3].id)
-                record.name = gnutranslation.gettext(currency.name)
+                record.name = _remove_forbidden_chars(
+                    gnutranslation.gettext(currency.name))
                 records.append(record)
             Currency.save(records)
 
@@ -97,13 +106,11 @@ def do_import():
 
 def run():
     parser = ArgumentParser()
-    parser.add_argument('-d', '--database', dest='database')
+    parser.add_argument('-d', '--database', dest='database', required=True)
     parser.add_argument('-c', '--config', dest='config_file',
         help='the trytond config file')
 
     args = parser.parse_args()
-    if not args.database:
-        parser.error('Missing database')
     main(args.database, args.config_file)
 
 
