@@ -2,11 +2,16 @@
 # this repository contains the full copyright notices and license terms.
 
 from trytond.pool import Pool
-from . import currency
 
 
 def register():
+    # Prevent to import backend when importing scripts
+    from . import currency
+    from . import ir
     Pool.register(
         currency.Currency,
         currency.CurrencyRate,
+        currency.Cron,
+        currency.Cron_Currency,
+        ir.Cron,
         module='currency', type_='model')
